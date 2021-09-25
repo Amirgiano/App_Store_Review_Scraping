@@ -1,0 +1,109 @@
+---
+title: "Appstore Review Scarping Case Study"
+author: "Ibrahim Israfilov"
+date: "9/25/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+ios = read.csv("Buddyfit_review.csv")
+names(ios)[names(ios) == 'X'] <- 'doc_id'
+names(ios)[names(ios) == 'review'] <- 'text'
+
+```
+
+```{r}
+head(ios)
+library(ggplot2)
+ios %>% ggplot(aes(rating))+
+  geom_bar(fill="steelblue")
+```
+```{r}
+ios = ios %>%
+    mutate(rating = ifelse(rating >= 4, "positive", "negative"))
+```
+
+
+```{r}
+#How long agrresive and non aggresive comments are
+ios$nchar = str_length(ios$text)
+ggplot(ios, aes(x = rating, y = nchar, fill = rating)) + 
+    geom_boxplot() + theme_bw() + scale_fill_manual(values = c("steelblue", 
+    "skyblue"))
+```
+```{r}
+library(tidytext)
+library(tm)
+tidy_text <- ios %>%
+    unnest_tokens(word, text)
+```
+
+
+```{r message=FALSE, include=FALSE}
+#Defining stopwords
+stopwords_italian = c("sono","di","per","e", "a", "o","anche","la","il","lo","aver","stato","ho","avevo","del","dal","allora","da","e","chi","che","grazie","grazi","molto","meno","perche","fare","problemi","fantastici","ottimo","wow","super","ottimo","bellissimo")
+#Saving the list
+lapply(stopwords_italian, write, "stopwords_italian.txt", append=TRUE, ncolumns=1000)
+
+#reading the list
+stops = readLines("stopwords_italian.txt")
+
+#Getting rid of the list
+tidy_text$word =removeWords(tidy_text$word,stops)
+tidy_text = tidy_text %>% 
+                  subset(nchar(as.character(word)) > 3)
+
+```
+
+```{r}
+library(SnowballC)
+
+tidy_stem <- tidy_text %>%
+    mutate(word = wordStem(word))
+    
+    
+```
+
+
+```{r}
+tidy_stem %>%
+    count(word) %>%
+    slice_max(n, n = 10) %>%
+    mutate(word = reorder(word, n)) %>%
+    ggplot(aes(word, n, fill = word)) + geom_bar(stat = "identity", 
+    fill = "skyblue") + xlab(NULL) + labs(title = "Most common stems in titles", 
+    y = "Stems count") + theme(legend.position = "none", plot.title = element_text(color = "steelblue", 
+    size = 12, face = "bold")) + coord_flip() + theme_bw()
+```
+```{r message=FALSE, warning=FALSE}
+library(wordcloud)
+tidy_stem %>%
+    count(word) %>%
+    with(wordcloud(scale = c(5, 0.7), word, n, max.words = 100, 
+        min.freq = 2, random.order = F, rot.per = 0.15, colors = brewer.pal(8, 
+            "Paired")))
+```
+
+```{r}
+tidy_stem %>%
+    group_by(rating) %>%
+    count(word) %>%
+    group_by(rating) %>%
+    slice_max(n, n = 10, with_ties = F) %>%
+    mutate(rating = as.factor(rating), word = reorder_within(word, 
+        n, rating)) %>%
+    ggplot(aes(word, n, fill = rating)) + geom_col(show.legend = FALSE) + 
+    facet_wrap(~rating, scales = "free_y") + coord_flip() + 
+    labs(title = "Most common stems in positive/negative reviews", 
+        y = NULL, x = "N") + scale_x_reordered() + theme(legend.position = "none", 
+    plot.title = element_text(color = "steelblue", "skyblue")) + 
+    scale_fill_manual(values = c("steelblue", "skyblue")) + theme_bw()
+```
+
+
+
+
+
+
